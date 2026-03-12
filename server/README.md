@@ -15,7 +15,7 @@ npm install
 Create a `.env` file in the server directory (copy from `.env.example`):
 
 ```bash
-MONGODB_URI=mongodb://localhost:27017/linksave
+MONGODB_URI=mongodb://127.0.0.1:27017/linksave
 PORT=5000
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
@@ -40,8 +40,10 @@ CLIENT_URL=http://localhost:3000
 **Option B: MongoDB Atlas (Cloud)**
 
 ```
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/linksave?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-name>.mongodb.net/linksave?retryWrites=true&w=majority
 ```
+
+Use your actual Atlas cluster hostname. The placeholder `cluster.mongodb.net` value is only an example and will fail DNS lookup in deployment.
 
 ### 4. Start the Server
 
@@ -56,6 +58,8 @@ npm run dev
 ```bash
 npm start
 ```
+
+Before deploying, set `MONGODB_URI` in your hosting provider to a real MongoDB connection string. In production the server will stop immediately if `MONGODB_URI` is missing or still uses the placeholder example value.
 
 The API will be accessible at `http://localhost:5000`
 

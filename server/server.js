@@ -9,8 +9,46 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/linksave";
+
+function getMongoUri() {
+  const configuredUri = process.env.MONGODB_URI?.trim();
+
+  if (configuredUri) {
+    if (configuredUri.includes("username:password@cluster.mongodb.net")) {
+      throw new Error(
+        "MONGODB_URI is still using the example placeholder. Set a real MongoDB Atlas connection string in your deployment environment.",
+      );
+    }
+
+    return configuredUri;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "MONGODB_URI is not set. Add your real MongoDB connection string to the deployment environment.",
+    );
+  }
+
+  return "mongodb://127.0.0.1:27017/linksave";
+}
+
+function describeMongoUri(uri) {
+  try {
+    const parsed = new URL(uri);
+    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname}`;
+  } catch {
+    return "configured";
+  }
+}
+
+let MONGODB_URI;
+
+try {
+  MONGODB_URI = getMongoUri();
+} catch (error) {
+  console.error("✗ MongoDB configuration error:", error.message);
+  process.exit(1);
+}
 
 // ============================================
 // MIDDLEWARE
@@ -30,31 +68,17 @@ app.use(
 app.use(express.json());
 
 // ============================================
-// MONGODB CONNECTION
-// ============================================
-
-mongoose
-  .connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log("✓ Connected to MongoDB");
-  })
-  .catch((error) => {
-    console.error("✗ MongoDB connection error:", error.message);
-    process.exit(1); // Exit the application if database connection fails
-  });
-
-// ============================================
 // ROUTES
 // ============================================
 
 // Health check endpoint
 app.get("/health", (req, res) => {
+  const databaseConnected = mongoose.connection.readyState === 1;
+
   res.status(200).json({
     success: true,
     message: "Server is running",
+    database: databaseConnected ? "connected" : "disconnected",
   });
 });
 
@@ -85,15 +109,30 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ============================================
 
-app.listen(PORT, () => {
-  console.log(`
+async function startServer() {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+    });
+
+    console.log("✓ Connected to MongoDB");
+
+    app.listen(PORT, () => {
+      console.log(`
 ╔═══════════════════════════════════════╗
 ║     Link Vault API Server Running     ║
 ╚═══════════════════════════════════════╝
 Port: ${PORT}
-Database: ${MONGODB_URI}
+Database: ${describeMongoUri(MONGODB_URI)}
 Environment: ${process.env.NODE_ENV || "development"}
   `);
-});
+    });
+  } catch (error) {
+    console.error("✗ MongoDB connection error:", error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 export default app;
