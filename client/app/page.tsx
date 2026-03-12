@@ -1,18 +1,26 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Link as LinkIcon } from "lucide-react";
 import type { LinkItem } from "@/app/types";
-import { useLocalStorage } from "@/app/hooks/useLocalStorage";
 import BorderContainer from "@/app/components/BorderContainer";
 import Divider from "@/app/components/Divider";
 import SearchBar from "@/app/components/SearchBar";
 import LinkInput from "@/app/components/LinkInput";
 import LinkCard from "@/app/components/LinkCard";
+import { fetchLinks, addLink, deleteLink } from "@/app/lib/api";
 
 export default function Home() {
-  const [links, setLinks] = useLocalStorage<LinkItem[]>("linksave-links", []);
+  const [links, setLinks] = useState<LinkItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLinks()
+      .then(setLinks)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredLinks = useMemo(() => {
     if (!searchQuery.trim()) return links;
@@ -25,19 +33,23 @@ export default function Home() {
     );
   }, [links, searchQuery]);
 
-  const handleAdd = useCallback(
-    (item: LinkItem) => {
-      setLinks((prev) => [item, ...prev]);
-    },
-    [setLinks],
-  );
+  const handleAdd = useCallback(async (item: LinkItem) => {
+    try {
+      const saved = await addLink(item.url, item.description);
+      setLinks((prev) => [saved, ...prev]);
+    } catch (err) {
+      console.error("Failed to save link:", err);
+    }
+  }, []);
 
-  const handleDelete = useCallback(
-    (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await deleteLink(id);
       setLinks((prev) => prev.filter((link) => link.id !== id));
-    },
-    [setLinks],
-  );
+    } catch (err) {
+      console.error("Failed to delete link:", err);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-black">
@@ -77,7 +89,11 @@ export default function Home() {
 
         {/* Links list */}
         <div className="mt-4 space-y-3">
-          {filteredLinks.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <p className="text-sm text-neutral-600 font-mono">Loading...</p>
+            </div>
+          ) : filteredLinks.length > 0 ? (
             filteredLinks.map((link) => (
               <LinkCard key={link.id} item={link} onDelete={handleDelete} />
             ))
