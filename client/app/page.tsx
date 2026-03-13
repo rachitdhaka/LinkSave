@@ -14,11 +14,20 @@ export default function Home() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLinks()
-      .then(setLinks)
-      .catch(console.error)
+      .then((data) => {
+        setLinks(data);
+        setErrorMessage(null);
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Failed to fetch links";
+        console.error("Failed to fetch links:", err);
+        setErrorMessage(message);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -37,8 +46,12 @@ export default function Home() {
     try {
       const saved = await addLink(item.url, item.description);
       setLinks((prev) => [saved, ...prev]);
-    } catch (err) {
+      setErrorMessage(null);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to save link";
       console.error("Failed to save link:", err);
+      setErrorMessage(message);
     }
   }, []);
 
@@ -46,8 +59,12 @@ export default function Home() {
     try {
       await deleteLink(id);
       setLinks((prev) => prev.filter((link) => link.id !== id));
-    } catch (err) {
+      setErrorMessage(null);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete link";
       console.error("Failed to delete link:", err);
+      setErrorMessage(message);
     }
   }, []);
 
@@ -73,6 +90,10 @@ export default function Home() {
           {/* Input */}
           <LinkInput onAdd={handleAdd} />
         </BorderContainer>
+
+        {errorMessage && (
+          <p className="mt-4 text-xs font-mono text-red-400">{errorMessage}</p>
+        )}
 
         {/* Links count */}
         <div className="flex items-center justify-between mt-8 mb-4">
