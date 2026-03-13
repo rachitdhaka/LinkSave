@@ -1,21 +1,8 @@
 import type { LinkItem } from "@/app/types";
 import { detectCategory } from "@/app/lib/utils";
 
-const DEV_API_URL = "http://localhost:5000";
-
-function getBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "";
-
-  // Normalize common values like https://host.com/ or https://host.com/api.
-  if (configured) {
-    return configured.replace(/\/+$/, "").replace(/\/api$/, "");
-  }
-
-  // Local development should work without manually creating client .env files.
-  return process.env.NODE_ENV === "development" ? DEV_API_URL : "";
-}
-
-const BASE_URL = getBaseUrl();
+const LINKS_ENDPOINT = "/api/links";
+const MAX_ERROR_TEXT_LENGTH = 180;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -41,6 +28,24 @@ function toLinkItem(doc: BackendLink): LinkItem {
   };
 }
 
+function normalizeErrorText(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (/^<!doctype html/i.test(normalized) || /^<html/i.test(normalized)) {
+    return "Unexpected HTML response from API";
+  }
+
+  if (normalized.length <= MAX_ERROR_TEXT_LENGTH) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, MAX_ERROR_TEXT_LENGTH - 3)}...`;
+}
+
 async function getErrorMessage(res: Response): Promise<string> {
   const fallback = `${res.status} ${res.statusText}`.trim();
   const contentType = res.headers.get("content-type") ?? "";
@@ -55,7 +60,7 @@ async function getErrorMessage(res: Response): Promise<string> {
   }
 
   try {
-    const text = (await res.text()).trim();
+    const text = normalizeErrorText(await res.text());
     return text || fallback;
   } catch {
     return fallback;
@@ -63,7 +68,7 @@ async function getErrorMessage(res: Response): Promise<string> {
 }
 
 export async function fetchLinks(): Promise<LinkItem[]> {
-  const res = await fetch(`${BASE_URL}/api/links`, { cache: "no-store" });
+  const res = await fetch(LINKS_ENDPOINT, { cache: "no-store" });
 
   if (!res.ok) {
     const reason = await getErrorMessage(res);
@@ -78,7 +83,7 @@ export async function addLink(
   url: string,
   description: string,
 ): Promise<LinkItem> {
-  const res = await fetch(`${BASE_URL}/api/links`, {
+  const res = await fetch(LINKS_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, description }),
@@ -94,7 +99,7 @@ export async function addLink(
 }
 
 export async function deleteLink(id: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/links/${id}`, {
+  const res = await fetch(`${LINKS_ENDPOINT}/${id}`, {
     method: "DELETE",
   });
 
